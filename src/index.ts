@@ -66,7 +66,7 @@ export default {
 
     const prefix = isIPFS ? "/ipfs/" : "/ipns/";
     if (!pathname.endsWith("/") && pathname.slice(prefix.length) === cid) {
-      return redirect(`${url.pathname}/${url.search}`);
+      return redirect(`${url.origin}${url.pathname}/${url.search}`);
     }
 
     const resource = pathname.slice(prefix.length).slice(cid.length).replace(/^\//, "");
