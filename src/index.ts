@@ -64,10 +64,12 @@ export default {
       return new Response("invalid path", { status: 400 });
     }
 
-    const resource = pathname
-      .slice(isIPFS ? "/ipfs/".length : "/ipns/".length)
-      .slice(cid.length)
-      .replace(/^\//, "");
+    const prefix = isIPFS ? "/ipfs/" : "/ipns/";
+    if (!pathname.endsWith("/") && pathname.slice(prefix.length) === cid) {
+      return redirect(`${url.pathname}/${url.search}`);
+    }
+
+    const resource = pathname.slice(prefix.length).slice(cid.length).replace(/^\//, "");
     const gatewayPaths = IPFS_HOSTS.map((host) => {
       const base = `https://${host}/${isIPFS ? "ipfs" : "ipns"}/${cid}`;
       return resource ? `${base}/${resource}` : base;
