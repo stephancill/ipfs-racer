@@ -1,4 +1,8 @@
-const IPFS_HOSTS = ["dweb.link", "ipfs.io", "cloudflare-ipfs.com", "gateway.pinata.cloud"];
+const IPFS_HOSTS = ["dweb.link", "ipfs.io"];
+
+type Env = {
+  ASSETS: Fetcher;
+};
 
 function redirect(target: string): Response {
   return Response.redirect(target, 301);
@@ -42,7 +46,7 @@ function extractCID(pathname: string): string | null {
 }
 
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const pathname = url.pathname;
 
@@ -51,9 +55,7 @@ export default {
 
     if (!isIPFS && !isIPNS) {
       if (pathname === "/" || pathname === "") {
-        return new Response("ipfs.stupidtech.net — IPFS/IPNS gateway racer", {
-          headers: { "Content-Type": "text/plain" },
-        });
+        return env.ASSETS.fetch(new Request(new URL("/index.html", request.url)));
       }
 
       return redirect(`https://dweb.link${pathname}${url.search}`);

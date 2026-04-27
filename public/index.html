@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>stupid ipfs</title>
+    <meta property="og:title" content="stupid ipfs" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://ipfs.stupidtech.net/" />
+    <meta
+      property="og:description"
+      content="A fast IPFS and IPNS gateway that races multiple public gateways."
+    />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+  </head>
+  <body>
+    <h1>stupid ipfs</h1>
+    <p>
+      A fast IPFS and IPNS gateway that races multiple public gateways and returns the first valid
+      response.
+    </p>
+
+    <h2>Usage</h2>
+    <pre>
+# IPFS content
+https://ipfs.stupidtech.net/ipfs/&lt;cid&gt;
+https://ipfs.stupidtech.net/ipfs/&lt;cid&gt;/path/to/resource
+
+# IPNS names
+https://ipfs.stupidtech.net/ipns/&lt;name&gt;
+https://ipfs.stupidtech.net/ipns/&lt;name&gt;/path/to/resource
+    </pre>
+
+    <p>
+      Example:
+      <a
+        href="https://ipfs.stupidtech.net/ipfs/bafybeiaql2jo3fu5b7c4lmpoi5drh5sam7yt652shwdgwbky4o7uw33u2u/"
+        >https://ipfs.stupidtech.net/ipfs/bafybei...2u/</a
+      >
+    </p>
+
+    <h2>Gateways</h2>
+    <p>Requests race these public gateways. The fastest valid response wins.</p>
+    <ul>
+      <li><code>dweb.link</code></li>
+      <li><code>ipfs.io</code></li>
+    </ul>
+
+    <p>
+      <a href="https://github.com/stephancill/ipfs-racer">github</a>
+      -
+      <a href="https://x.com/stephancill">twitter</a>
+      -
+      <a href="https://stupidtech.net">stupidtech.net</a>
+    </p>
+  </body>
+</html>
