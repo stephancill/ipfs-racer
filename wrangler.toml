@@ -1,0 +1,6 @@
+name = "ipfs-racer"
+main = "src/index.ts"
+compatibility_date = "2026-04-26"
+workers_dev = false
+
+routes = [{ pattern = "ipfs.stupidtech.net", custom_domain = true }]

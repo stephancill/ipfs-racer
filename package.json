@@ -1,0 +1,20 @@
+{
+  "name": "ipfs-racer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "lint": "bunx oxlint src",
+    "format": "bunx oxfmt --write .",
+    "check": "bun run lint && bun run format"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260426.1",
+    "wrangler": "^4.85.0"
+  }
+}
