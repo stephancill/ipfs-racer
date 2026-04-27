@@ -1,4 +1,4 @@
-const IPFS_HOSTS = ["dweb.link", "ipfs.io"];
+const IPFS_HOSTS = ["dweb.link", "ipfs.io", "gateway.pinata.cloud"];
 
 type Env = {
   ASSETS: Fetcher;
