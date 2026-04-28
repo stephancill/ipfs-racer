@@ -58,7 +58,7 @@ export function freshnessHtml(name: string, age: number | null): string {
 
   const recent = age < DAY_SECONDS;
   const color = recent ? "#f97316" : "#22c55e";
-  const label = recent ? `updated ${formatAge(age)} ago` : "stable";
+  const label = recent ? `updated ${formatAge(age)} ago` : `No changes to ${name} in the last day`;
 
   return `
 <style>
@@ -94,8 +94,8 @@ export function freshnessHtml(name: string, age: number | null): string {
   opacity: 1;
 }
 </style>
-<div id="_sref-dot" title="${name}"></div>
-<div id="_sref-tooltip">${name} ${label}</div>
+<div id="_sref-dot"></div>
+<div id="_sref-tooltip">${label}</div>
 `;
 }
 
