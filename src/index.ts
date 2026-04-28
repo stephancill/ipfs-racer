@@ -85,6 +85,12 @@ export default {
         return redirect(`https://dweb.link${pathname}${url.search}`);
       }
 
+      if (pathCID.isIPFS) {
+        const resource = pathname.slice(`/ipfs/${pathCID.cid}`.length).replace(/^\//, "");
+        const path = resource ? `/${resource}` : "/";
+        return redirect(`https://${pathCID.cid}.ipfs.stupidtech.net${path}${url.search}`);
+      }
+
       return serveContent({ cid: pathCID.cid, isIPFS: pathCID.isIPFS, pathname, url });
     }
 
