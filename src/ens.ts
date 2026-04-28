@@ -62,22 +62,41 @@ export function freshnessHtml(name: string, age: number | null): string {
 
   return `
 <style>
-#_sref-dot {
+#_sref-badge {
   position: fixed;
   bottom: 12px;
-  right: 12px;
-  width: 12px;
-  height: 12px;
+  right: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px 0 0 4px;
+  background: #1a1a2e;
+  padding: 4px;
+  cursor: default;
+  z-index: 2147483647;
+  box-shadow: 0 0 8px rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#_sref-badge img {
+  width: 20px;
+  height: 20px;
+}
+#_sref-dot {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: ${color};
-  box-shadow: 0 0 6px ${color};
-  z-index: 2147483647;
-  cursor: default;
+  box-shadow: 0 0 4px ${color};
+  border: 1.5px solid #1a1a2e;
 }
 #_sref-tooltip {
   position: fixed;
-  bottom: 30px;
-  right: 8px;
+  bottom: 42px;
+  right: 0;
   background: #111;
   color: #ccc;
   font-family: system-ui, sans-serif;
@@ -90,11 +109,15 @@ export function freshnessHtml(name: string, age: number | null): string {
   transition: opacity 0.15s;
   z-index: 2147483647;
 }
+#_sref-badge:hover + #_sref-tooltip,
 #_sref-dot:hover + #_sref-tooltip {
   opacity: 1;
 }
 </style>
-<div id="_sref-dot"></div>
+<div id="_sref-badge">
+  <img src="https://ipfs.stupidtech.net/favicon.ico" />
+  <div id="_sref-dot"></div>
+</div>
 <div id="_sref-tooltip">${label}</div>
 `;
 }
