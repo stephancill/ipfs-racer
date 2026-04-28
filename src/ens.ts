@@ -63,24 +63,45 @@ export function freshnessHtml(name: string, age: number | null): string {
   return `
 <style>
 #_sref-badge {
-  position: fixed;
-  bottom: 12px;
-  right: 0;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px 0 0 4px;
-  background: #1a1a2e;
-  padding: 4px;
+  position: fixed !important;
+  bottom: 12px !important;
+  right: 0 !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  max-width: 24px !important;
+  max-height: 24px !important;
+  border-radius: 4px 0 0 4px !important;
+  background: #1a1a2e !important;
+  padding: 4px !important;
+  margin: 0 !important;
+  border: 0 !important;
   cursor: default;
   z-index: 2147483647;
   box-shadow: 0 0 8px rgba(0,0,0,0.3);
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: center;
+  box-sizing: content-box !important;
+  overflow: visible !important;
 }
 #_sref-badge img {
-  width: 20px;
-  height: 20px;
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  max-width: 16px !important;
+  max-height: 16px !important;
+  object-fit: contain !important;
+  display: block !important;
+  border: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: content-box !important;
+  opacity: 1 !important;
+  filter: none !important;
+  transform: none !important;
 }
 #_sref-dot {
   position: absolute;
