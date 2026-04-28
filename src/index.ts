@@ -47,6 +47,14 @@ function extractCID(pathname: string): string | null {
   return parts[1];
 }
 
+function rewriteRootPaths(html: string, root: string): string {
+  const base = root.endsWith("/") ? root : `${root}/`;
+  return html.replace(/\b(href|src)=(['"])\/(?!\/)([^'"]*)\2/gi, (_match, attr, quote, path) => {
+    const url = new URL(path, base).toString();
+    return `${attr}=${quote}${url}${quote}`;
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -93,15 +101,13 @@ export default {
       const headers = new Headers(response.headers);
       headers.set("Cache-Control", headers.get("Cache-Control") ?? "public, max-age=300");
 
-      if (
-        sref &&
-        age !== null &&
-        (response.headers.get("Content-Type") ?? "").includes("text/html")
-      ) {
-        const body = await response.text();
-        const enriched = `${body}${freshnessHtml(sref, age)}`;
+      if ((response.headers.get("Content-Type") ?? "").includes("text/html")) {
+        let body = rewriteRootPaths(await response.text(), `${url.origin}${url.pathname}`);
+        if (sref && age !== null) {
+          body = `${body}${freshnessHtml(sref, age)}`;
+        }
         headers.delete("Content-Length");
-        return new Response(enriched, {
+        return new Response(body, {
           status: response.status,
           statusText: response.statusText,
           headers,
