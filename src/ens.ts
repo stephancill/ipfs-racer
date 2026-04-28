@@ -64,7 +64,9 @@ export function freshnessHtml(name: string, age: number | null): string {
 <style>
 #_sref-badge {
   position: fixed !important;
-  bottom: 12px !important;
+  top: 50% !important;
+  bottom: auto !important;
+  transform: translateY(-50%) !important;
   right: 0 !important;
   width: 32px !important;
   height: 32px !important;
@@ -105,8 +107,8 @@ export function freshnessHtml(name: string, age: number | null): string {
 }
 #_sref-dot {
   position: absolute;
-  bottom: 0;
-  left: 0;
+  bottom: 3px;
+  left: 3px;
   width: 6px;
   height: 6px;
   border-radius: 50%;
