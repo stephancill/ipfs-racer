@@ -66,12 +66,12 @@ export function freshnessHtml(name: string, age: number | null): string {
   position: fixed !important;
   bottom: 12px !important;
   right: 0 !important;
-  width: 24px !important;
-  height: 24px !important;
-  min-width: 24px !important;
-  min-height: 24px !important;
-  max-width: 24px !important;
-  max-height: 24px !important;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  max-width: 32px !important;
+  max-height: 32px !important;
   border-radius: 0 !important;
   background: transparent !important;
   padding: 6px 4px !important;
@@ -87,12 +87,12 @@ export function freshnessHtml(name: string, age: number | null): string {
   overflow: visible !important;
 }
 #_sref-badge img {
-  width: 16px !important;
-  height: 16px !important;
-  min-width: 16px !important;
-  min-height: 16px !important;
-  max-width: 16px !important;
-  max-height: 16px !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  max-width: 28px !important;
+  max-height: 28px !important;
   object-fit: contain !important;
   display: block !important;
   border: 0 !important;
@@ -134,7 +134,7 @@ export function freshnessHtml(name: string, age: number | null): string {
 }
 </style>
 <div id="_sref-badge">
-  <img src="https://ipfs.stupidtech.net/favicon.ico" />
+  <img src="https://ipfs.stupidtech.net/badge.png" />
   <div id="_sref-dot"></div>
 </div>
 <div id="_sref-tooltip">${label}</div>
