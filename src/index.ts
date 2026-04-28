@@ -41,86 +41,124 @@ async function fetchFirstValidGatewayResponse(urls: string[]): Promise<Response 
   }
 }
 
-function extractCID(pathname: string): string | null {
-  const parts = pathname.split("/").filter(Boolean);
-  if (parts.length < 2) return null;
-  return parts[1];
+function extractSubdomainCID(hostname: string): { cid: string; isIPFS: boolean } | null {
+  const parts = hostname.split(".");
+  if (parts.length < 3) return null;
+
+  const cid = parts[0];
+  if (cid === "ipfs" || cid === "www") return null;
+  if (!/^[a-zA-Z0-9_-]+$/.test(cid)) return null;
+
+  return { cid, isIPFS: true };
 }
 
-function rewriteRootPaths(html: string, root: string): string {
-  const base = root.endsWith("/") ? root : `${root}/`;
-  return html.replace(/\b(href|src)=(['"])\/(?!\/)([^'"]*)\2/gi, (_match, attr, quote, path) => {
-    const url = new URL(path, base).toString();
-    return `${attr}=${quote}${url}${quote}`;
-  });
+function extractPathCID(pathname: string): { cid: string; isIPFS: boolean } | null {
+  const isIPFS = pathname.startsWith("/ipfs/");
+  const isIPNS = pathname.startsWith("/ipns/");
+  if (!isIPFS && !isIPNS) return null;
+
+  const parts = pathname.split("/").filter(Boolean);
+  if (parts.length < 2) return null;
+
+  return { cid: parts[1], isIPFS };
+}
+
+function isHtmlResponse(response: Response): boolean {
+  return (response.headers.get("Content-Type") ?? "").includes("text/html");
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    const pathname = url.pathname;
+    const { hostname, pathname } = url;
 
-    const isIPFS = pathname.startsWith("/ipfs/");
-    const isIPNS = pathname.startsWith("/ipns/");
+    const subdomain = extractSubdomainCID(hostname);
+    const isRootDomain = hostname === "ipfs.stupidtech.net";
 
-    if (!isIPFS && !isIPNS) {
+    if (isRootDomain) {
       if (pathname === "/" || pathname === "") {
         return env.ASSETS.fetch(new Request(new URL("/index.html", request.url)));
       }
 
-      return redirect(`https://dweb.link${pathname}${url.search}`);
-    }
-
-    const cid = extractCID(pathname);
-    if (!cid) {
-      return new Response("invalid path", { status: 400 });
-    }
-
-    const prefix = isIPFS ? "/ipfs/" : "/ipns/";
-    if (!pathname.endsWith("/") && pathname.slice(prefix.length) === cid) {
-      return redirect(`${url.origin}${url.pathname}/${url.search}`);
-    }
-
-    const resource = pathname.slice(prefix.length).slice(cid.length).replace(/^\//, "");
-    const sref = url.searchParams.get("_sref");
-    const gatewayParams = new URLSearchParams(url.searchParams);
-    gatewayParams.delete("_sref");
-    const gatewaySearch = gatewayParams.size ? `?${gatewayParams.toString()}` : "";
-    const gatewayPaths = IPFS_HOSTS.map((host) => {
-      const base = `https://${host}/${isIPFS ? "ipfs" : "ipns"}/${cid}`;
-      const path = resource ? `${base}/${resource}` : base;
-      return `${path}${gatewaySearch}`;
-    });
-
-    const [response, age] = await Promise.all([
-      fetchFirstValidGatewayResponse(gatewayPaths),
-      sref ? lookupContenthashAge(sref).catch(() => null) : Promise.resolve(null),
-    ]);
-
-    if (response) {
-      const headers = new Headers(response.headers);
-      headers.set("Cache-Control", headers.get("Cache-Control") ?? "public, max-age=300");
-
-      if ((response.headers.get("Content-Type") ?? "").includes("text/html")) {
-        let body = rewriteRootPaths(await response.text(), `${url.origin}${url.pathname}`);
-        if (sref && age !== null) {
-          body = `${body}${freshnessHtml(sref, age)}`;
-        }
-        headers.delete("Content-Length");
-        return new Response(body, {
-          status: response.status,
-          statusText: response.statusText,
-          headers,
-        });
+      const pathCID = extractPathCID(pathname);
+      if (!pathCID) {
+        return redirect(`https://dweb.link${pathname}${url.search}`);
       }
 
-      return new Response(response.body, {
+      return serveContent({ cid: pathCID.cid, isIPFS: pathCID.isIPFS, pathname, url });
+    }
+
+    if (subdomain) {
+      return serveContent({
+        cid: subdomain.cid,
+        isIPFS: subdomain.isIPFS,
+        pathname: `/${subdomain.cid}${pathname}`,
+        url,
+      });
+    }
+
+    return redirect(`https://dweb.link${pathname}${url.search}`);
+  },
+};
+
+async function serveContent({
+  cid,
+  isIPFS,
+  pathname,
+  url,
+}: {
+  cid: string;
+  isIPFS: boolean;
+  pathname: string;
+  url: URL;
+}): Promise<Response> {
+  const prefix = isIPFS ? "/ipfs/" : "/ipns/";
+
+  if (!pathname.endsWith("/") && pathname.slice(prefix.length) === cid) {
+    return redirect(`${url.origin}${url.pathname}/${url.search}`);
+  }
+
+  const resource = pathname.slice(prefix.length).slice(cid.length).replace(/^\//, "");
+
+  const sref = url.searchParams.get("_sref");
+  const gatewayParams = new URLSearchParams(url.searchParams);
+  gatewayParams.delete("_sref");
+  const gatewaySearch = gatewayParams.size ? `?${gatewayParams.toString()}` : "";
+
+  const gatewayPaths = IPFS_HOSTS.map((host) => {
+    const base = `https://${host}/${isIPFS ? "ipfs" : "ipns"}/${cid}`;
+    const path = resource ? `${base}/${resource}` : base;
+    return `${path}${gatewaySearch}`;
+  });
+
+  const [response, age] = await Promise.all([
+    fetchFirstValidGatewayResponse(gatewayPaths),
+    sref ? lookupContenthashAge(sref).catch(() => null) : Promise.resolve(null),
+  ]);
+
+  if (response) {
+    const headers = new Headers(response.headers);
+    headers.set("Cache-Control", headers.get("Cache-Control") ?? "public, max-age=300");
+
+    if (isHtmlResponse(response)) {
+      let body = await response.text();
+      if (sref && age !== null) {
+        body = `${body}${freshnessHtml(sref, age)}`;
+      }
+      headers.delete("Content-Length");
+      return new Response(body, {
         status: response.status,
         statusText: response.statusText,
         headers,
       });
     }
 
-    return new Response("no reachable gateway", { status: 502 });
-  },
-};
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  }
+
+  return new Response("no reachable gateway", { status: 502 });
+}
