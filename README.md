@@ -5,11 +5,31 @@ Cloudflare Worker that races public IPFS and IPNS gateways and returns the first
 ## Usage
 
 ```
-ipfs.stupidtech.net/ipfs/<cid>
-ipfs.stupidtech.net/ipfs/<cid>/path/to/resource
-ipfs.stupidtech.net/ipns/<name>
-ipfs.stupidtech.net/ipns/<name>/path/to/resource
+https://<cid>.ipfs.stupidtech.net/
+https://<cid>.ipfs.stupidtech.net/path/to/resource
 ```
+
+The path-based format redirects to the subdomain format:
+
+```
+https://ipfs.stupidtech.net/ipfs/<cid>/    →  https://<cid>.ipfs.stupidtech.net/
+https://ipfs.stupidtech.net/ipns/<name>/   →  served directly
+```
+
+## Gateways
+
+Requests race these public gateways. The fastest valid response wins.
+
+- `dweb.link` (subdomain)
+- `ipfs.io` (path)
+- `gateway.pinata.cloud` (path)
+
+## ENS freshness indicator
+
+When visiting via a search engine like [stupid search](https://search.stupidtech.net), a dot appears in the bottom-right corner:
+
+- **Green** — No contenthash changes in the last 24 hours.
+- **Orange** — Recently updated (shows how long ago).
 
 ## Development
 

@@ -15,9 +15,42 @@
   </head>
   <body>
     <h1>stupid ipfs</h1>
+    <p>A fast IPFS and IPNS gateway that races multiple public gateways and returns the first valid response.</p>
+
+    <h2>Usage</h2>
+    <pre>
+# subdomain (recommended)
+https://&lt;cid&gt;.ipfs.stupidtech.net/
+https://&lt;cid&gt;.ipfs.stupidtech.net/path/to/resource
+
+# path (redirects to subdomain)
+https://ipfs.stupidtech.net/ipfs/&lt;cid&gt;/
+
+# ipns (path only)
+https://ipfs.stupidtech.net/ipns/&lt;name&gt;/
+    </pre>
+
     <p>
-      A fast IPFS and IPNS gateway that races multiple public gateways and returns the first valid
-      response.
+      Example:
+      <a href="https://bafybeiaql2jo3fu5b7c4lmpoi5drh5sam7yt652shwdgwbky4o7uw33u2u.ipfs.stupidtech.net/"
+        >bafybei...2u.ipfs.stupidtech.net</a
+      >
+    </p>
+
+    <h2>Gateways</h2>
+    <p>Requests race these public gateways. The fastest valid response wins.</p>
+    <ul>
+      <li><code>dweb.link</code></li>
+      <li><code>ipfs.io</code></li>
+      <li><code>gateway.pinata.cloud</code></li>
+    </ul>
+
+    <p>
+      <a href="https://github.com/stephancill/ipfs-racer">github</a>
+      -
+      <a href="https://x.com/stephancill">twitter</a>
+      -
+      <a href="https://stupidtech.net">stupidtech.net</a>
     </p>
 
     <h2>Usage</h2>

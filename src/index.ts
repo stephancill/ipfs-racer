@@ -17,7 +17,6 @@ async function fetchFirstValidGatewayResponse(urls: string[]): Promise<Response 
     const { index, response } = await Promise.any(
       urls.map(async (url, index) => {
         const response = await fetch(url, {
-          headers: { Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
           signal: controllers[index].signal,
         });
 
@@ -91,14 +90,15 @@ export default {
         return redirect(`https://${pathCID.cid}.ipfs.stupidtech.net${path}${url.search}`);
       }
 
-      return serveContent({ cid: pathCID.cid, isIPFS: pathCID.isIPFS, pathname, url });
+      const resource = pathname.slice(`/ipns/${pathCID.cid}`.length).replace(/^\//, "");
+      return serveContent({ cid: pathCID.cid, isIPFS: false, resource, url });
     }
 
     if (subdomain) {
       return serveContent({
         cid: subdomain.cid,
         isIPFS: subdomain.isIPFS,
-        pathname: `/${subdomain.cid}${pathname}`,
+        resource: pathname.slice(1),
         url,
       });
     }
@@ -110,28 +110,23 @@ export default {
 async function serveContent({
   cid,
   isIPFS,
-  pathname,
+  resource,
   url,
 }: {
   cid: string;
   isIPFS: boolean;
-  pathname: string;
+  resource: string;
   url: URL;
 }): Promise<Response> {
-  const prefix = isIPFS ? "/ipfs/" : "/ipns/";
-
-  if (!pathname.endsWith("/") && pathname.slice(prefix.length) === cid) {
-    return redirect(`${url.origin}${url.pathname}/${url.search}`);
-  }
-
-  const resource = pathname.slice(prefix.length).slice(cid.length).replace(/^\//, "");
-
   const sref = url.searchParams.get("_sref");
   const gatewayParams = new URLSearchParams(url.searchParams);
   gatewayParams.delete("_sref");
   const gatewaySearch = gatewayParams.size ? `?${gatewayParams.toString()}` : "";
 
   const gatewayPaths = IPFS_HOSTS.map((host) => {
+    if (isIPFS && host === "dweb.link") {
+      return `https://${cid}.ipfs.${host}${resource ? `/${resource}` : "/"}${gatewaySearch}`;
+    }
     const base = `https://${host}/${isIPFS ? "ipfs" : "ipns"}/${cid}`;
     const path = resource ? `${base}/${resource}` : base;
     return `${path}${gatewaySearch}`;
