@@ -72,14 +72,14 @@ export function freshnessHtml(name: string, age: number | null): string {
   min-height: 24px !important;
   max-width: 24px !important;
   max-height: 24px !important;
-  border-radius: 4px 0 0 4px !important;
-  background: #1a1a2e !important;
-  padding: 4px !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 6px 4px !important;
   margin: 0 !important;
   border: 0 !important;
   cursor: default;
   z-index: 2147483647;
-  box-shadow: 0 0 8px rgba(0,0,0,0.3);
+  box-shadow: none !important;
   display: flex !important;
   align-items: center;
   justify-content: center;
@@ -112,7 +112,7 @@ export function freshnessHtml(name: string, age: number | null): string {
   border-radius: 50%;
   background: ${color};
   box-shadow: 0 0 4px ${color};
-  border: 1.5px solid #1a1a2e;
+  border: 1.5px solid #fff;
 }
 #_sref-tooltip {
   position: fixed;
