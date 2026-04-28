@@ -105,14 +105,12 @@ export function freshnessHtml(name: string, age: number | null): string {
 }
 #_sref-dot {
   position: absolute;
-  bottom: -2px;
-  right: -2px;
-  width: 8px;
-  height: 8px;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: ${color};
-  box-shadow: 0 0 4px ${color};
-  border: 1.5px solid #fff;
 }
 #_sref-tooltip {
   position: fixed;
