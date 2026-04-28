@@ -107,8 +107,8 @@ export function freshnessHtml(name: string, age: number | null): string {
 }
 #_sref-dot {
   position: absolute;
-  bottom: 3px;
-  left: 3px;
+  bottom: 5px;
+  left: 5px;
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -116,7 +116,8 @@ export function freshnessHtml(name: string, age: number | null): string {
 }
 #_sref-tooltip {
   position: fixed;
-  bottom: 42px;
+  top: 50%;
+  transform: translateY(calc(-50% - 32px));
   right: 0;
   background: #111;
   color: #ccc;
