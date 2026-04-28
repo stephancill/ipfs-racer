@@ -81,7 +81,7 @@ export default {
 
       const pathCID = extractPathCID(pathname);
       if (!pathCID) {
-        return redirect(`https://dweb.link${pathname}${url.search}`);
+        return env.ASSETS.fetch(request);
       }
 
       if (pathCID.isIPFS) {
