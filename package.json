@@ -11,6 +11,7 @@
     "check": "bun run lint && bun run format"
   },
   "dependencies": {
+    "viem": "^2.48.4",
     "zod": "^4.3.6"
   },
   "devDependencies": {

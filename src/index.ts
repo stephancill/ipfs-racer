@@ -8,6 +8,8 @@ function redirect(target: string): Response {
   return Response.redirect(target, 301);
 }
 
+import { freshnessHtml, lookupContenthashAge } from "./ens";
+
 async function fetchFirstValidGatewayResponse(urls: string[]): Promise<Response | null> {
   const controllers = urls.map(() => new AbortController());
 
@@ -72,15 +74,40 @@ export default {
     }
 
     const resource = pathname.slice(prefix.length).slice(cid.length).replace(/^\//, "");
+    const sref = url.searchParams.get("_sref");
+    const gatewayParams = new URLSearchParams(url.searchParams);
+    gatewayParams.delete("_sref");
+    const gatewaySearch = gatewayParams.size ? `?${gatewayParams.toString()}` : "";
     const gatewayPaths = IPFS_HOSTS.map((host) => {
       const base = `https://${host}/${isIPFS ? "ipfs" : "ipns"}/${cid}`;
-      return resource ? `${base}/${resource}` : base;
+      const path = resource ? `${base}/${resource}` : base;
+      return `${path}${gatewaySearch}`;
     });
 
-    const response = await fetchFirstValidGatewayResponse(gatewayPaths);
+    const [response, age] = await Promise.all([
+      fetchFirstValidGatewayResponse(gatewayPaths),
+      sref ? lookupContenthashAge(sref).catch(() => null) : Promise.resolve(null),
+    ]);
+
     if (response) {
       const headers = new Headers(response.headers);
       headers.set("Cache-Control", headers.get("Cache-Control") ?? "public, max-age=300");
+
+      if (
+        sref &&
+        age !== null &&
+        (response.headers.get("Content-Type") ?? "").includes("text/html")
+      ) {
+        const body = await response.text();
+        const enriched = `${body}${freshnessHtml(sref, age)}`;
+        headers.delete("Content-Length");
+        return new Response(enriched, {
+          status: response.status,
+          statusText: response.statusText,
+          headers,
+        });
+      }
+
       return new Response(response.body, {
         status: response.status,
         statusText: response.statusText,
