@@ -31,6 +31,14 @@ When visiting via a search engine like [stupid search](https://search.stupidtech
 - **Green** — No contenthash changes in the last 24 hours.
 - **Orange** — Recently updated (shows how long ago).
 
+## Stats
+
+- `GET /stats`
+  - Returns service metrics as JSON, including total requests served, error responses, and average latency, plus how often each gateway won the race.
+  - Example: `curl -sS https://ipfs.stupidtech.net/stats`
+
+Metrics are aggregated in a SQLite-backed Durable Object, so the counters are eventually consistent across requests.
+
 ## Development
 
 ```bash
