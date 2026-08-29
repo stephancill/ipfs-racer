@@ -192,6 +192,12 @@ async function serveContent({
 
 const COUNTERS_STORAGE_KEY = "counters";
 
+// Initial `requestsServed` for a freshly-created Durable Object, so the stats
+// page starts from a realistic baseline instead of zero. Seeded from the past
+// 30 days of Cloudflare Worker metrics: 10,526 gateway subrequests / 3 gateways
+// raced per request ≈ 3,509 content races.
+const SEED_REQUESTS_SERVED = 3509;
+
 type MetricsStorageSnapshot = {
   requestsServed: number;
   errorResponses: number;
@@ -218,7 +224,7 @@ type IpfsMetricsRecord = {
 
 function defaultMetricsSnapshot(): MetricsStorageSnapshot {
   return {
-    requestsServed: 0,
+    requestsServed: SEED_REQUESTS_SERVED,
     errorResponses: 0,
     latencySumMs: 0,
     latencyCount: 0,

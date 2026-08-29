@@ -39,6 +39,8 @@ When visiting via a search engine like [stupid search](https://search.stupidtech
 
 Metrics are aggregated in a SQLite-backed Durable Object, so the counters are eventually consistent across requests.
 
+The `requestsServed` counter starts from a baseline seed (≈3,500) derived from the prior 30 days of Cloudflare Worker metrics (10,526 gateway subrequests ÷ 3 raced gateways) so the stats page isn't empty on first deploy. `errorResponses`, latency, and gateway wins accrue from real traffic going forward since Cloudflare doesn't expose those per provided-gateway.
+
 ## Development
 
 ```bash
