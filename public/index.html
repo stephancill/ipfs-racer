@@ -4,14 +4,56 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>stupid ipfs</title>
+    <meta
+      name="description"
+      content="A fast IPFS and IPNS gateway that races multiple public gateways and returns the first valid response."
+    />
     <meta property="og:title" content="stupid ipfs" />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://ipfs.stupidtech.net/" />
     <meta
       property="og:description"
-      content="A fast IPFS and IPNS gateway that races multiple public gateways."
+      content="A fast IPFS and IPNS gateway that races multiple public gateways and returns the first valid response."
     />
-    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://ipfs.stupidtech.net/" />
+    <meta property="og:image" content="https://ipfs.stupidtech.net/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 46rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.6;
+      }
+      code,
+      pre {
+        background: #f4f4f4;
+        padding: 0.15rem 0.35rem;
+        border-radius: 4px;
+      }
+      pre {
+        padding: 1rem;
+        overflow: auto;
+      }
+      form {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      input,
+      button {
+        font: inherit;
+      }
+      button {
+        padding: 0.25rem 0.75rem;
+      }
+      canvas {
+        display: block;
+        margin-top: 0.5rem;
+      }
+    </style>
   </head>
   <body>
     <h1>stupid ipfs</h1>
