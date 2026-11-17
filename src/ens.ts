@@ -1,5 +1,19 @@
-import { createPublicClient, http, namehash, parseAbiItem } from "viem";
+import {
+  createPublicClient,
+  decodeFunctionResult,
+  encodeFunctionData,
+  type Hex,
+  hexToBytes,
+  http,
+  namehash,
+  parseAbi,
+  parseAbiItem,
+  toHex,
+} from "viem";
+import { normalize } from "viem/ens";
 import { mainnet } from "viem/chains";
+import { decodeCidBytes, readVarint } from "./cid";
+import type { IpfsPath } from "./trustless";
 
 const RPC_URL = "https://evm.stupidtech.net/v1/1";
 const ENS_RESOLVER = "0x231b0Ee14048e9dCcD1d247744d114a4EB5E8E63";
@@ -49,6 +63,52 @@ export async function lookupContenthashAge(name: string): Promise<number | null>
   } catch {
     return null;
   }
+}
+
+const CONTENTHASH_ABI = parseAbi(["function contenthash(bytes32 node) view returns (bytes)"]);
+const UNIVERSAL_RESOLVER_ABI = parseAbi([
+  "function resolve(bytes name, bytes data) view returns (bytes, address)",
+]);
+const IPFS_NS = 0xe3;
+
+function dnsEncode(name: string): Hex {
+  const bytes: number[] = [];
+  for (const label of name.split(".")) {
+    const encoded = new TextEncoder().encode(label);
+    bytes.push(encoded.length, ...encoded);
+  }
+  bytes.push(0);
+  return toHex(new Uint8Array(bytes));
+}
+
+/** Resolves an ENS name's contenthash to an IPFS path (ipfs-ns only). */
+export async function resolveEnsContenthash(name: string): Promise<IpfsPath | null> {
+  const normalized = normalize(name);
+  const [result] = await getClient().readContract({
+    address: mainnet.contracts.ensUniversalResolver.address,
+    abi: UNIVERSAL_RESOLVER_ABI,
+    functionName: "resolve",
+    args: [
+      dnsEncode(normalized),
+      encodeFunctionData({
+        abi: CONTENTHASH_ABI,
+        functionName: "contenthash",
+        args: [namehash(normalized)],
+      }),
+    ],
+  });
+  const contenthash = decodeFunctionResult({
+    abi: CONTENTHASH_ABI,
+    functionName: "contenthash",
+    data: result,
+  });
+
+  const bytes = hexToBytes(contenthash);
+  if (bytes.length === 0) return null;
+  const [namespace, offset] = readVarint(bytes, 0);
+  if (namespace !== IPFS_NS) return null;
+  const [root] = decodeCidBytes(bytes, offset);
+  return { root, path: [] };
 }
 
 export function freshnessHtml(name: string, age: number | null): string {
