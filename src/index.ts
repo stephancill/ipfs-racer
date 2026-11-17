@@ -1,19 +1,14 @@
 import { cidToV1Base32, isLowercasedCidV0, parseCid } from "./cid";
 import { freshnessHtml, lookupContenthashAge, resolveEnsContenthash } from "./ens";
-import {
-  type IpfsPath,
-  NotFoundError,
-  TRUSTLESS_GATEWAYS,
-  fetchVerified,
-  findHttpProviders,
-  resolveDnslink,
-} from "./trustless";
+import { createVerifiedFetch, directoryListingHtml } from "./ipfs";
 
 const ROOT_HOST = "ipfs.stupidtech.net";
 
-// Public gateways that still return deserialized (rendered) content.
-// ipfs.io / dweb.link were sunset on 2026-09-21 and pinata refuses to serve HTML.
-const DESERIALIZED_GATEWAYS = ["ipfs.raribleuserdata.com"];
+// Free gateways that still return deserialized (rendered) content without altering it
+// (checked 2026-11-17). ipfs.io / dweb.link now rate limit all backend traffic, pinata
+// refuses HTML, and orbitor injects a Cloudflare challenge script into HTML (so it is
+// only used as a trustless block source, see ./ipfs.ts).
+const DESERIALIZED_GATEWAYS = ["ipfs.filebase.io", "ipfs.raribleuserdata.com"];
 
 const RACE_TIMEOUT_MS = 25_000;
 
@@ -37,6 +32,9 @@ function textResponse(body: string, status: number): Response {
     headers: { "content-type": "text/plain; charset=utf-8" },
   });
 }
+
+/** The verified path proved the requested path does not exist. */
+class NotFoundError extends Error {}
 
 type RaceResult = { label: string; response: Response } | { notFound: true } | null;
 
@@ -174,17 +172,14 @@ function directoryRedirect(url: URL): Response {
   return redirect(target.toString());
 }
 
-function resourceSegments(resource: string): string[] {
-  return resource
-    .split("/")
-    .filter(Boolean)
-    .map((segment) => decodeURIComponent(segment));
-}
-
-async function resolveIpnsName(name: string): Promise<IpfsPath | null> {
-  if (parseCid(name)) return null; // libp2p-key names need signed-record verification
-  if (name.endsWith(".eth")) return resolveEnsContenthash(name);
-  return resolveDnslink(name);
+/** ENS names resolve through their contenthash; everything else via verified IPNS/DNSLink. */
+async function resolveIpnsTarget(name: string): Promise<string> {
+  if (name.endsWith(".eth")) {
+    const cid = await resolveEnsContenthash(name);
+    if (!cid) throw new Error("no ipfs contenthash");
+    return `ipfs://${cidToV1Base32(cid)}`;
+  }
+  return `ipns://${name}`;
 }
 
 function buildRacers({
@@ -217,57 +212,48 @@ function buildRacers({
     },
   }));
 
-  // Verified retrieval from trustless gateways. Resolve the target once and share it.
-  let targetPromise: Promise<IpfsPath | null> | undefined;
-  const target = () => {
-    targetPromise ??= isIPFS
-      ? Promise.resolve(parseCid(cid) ? { root: parseCid(cid)!, path: [] } : null)
-      : resolveIpnsName(cid).catch(() => null);
-    return targetPromise;
-  };
-
-  const verified = async (gateway: string, signal: AbortSignal) => {
-    const resolved = await target();
-    if (!resolved) throw new Error("unresolvable name");
-    const result = await fetchVerified({
-      gateway,
-      root: resolved.root,
-      path: [...resolved.path, ...resourceSegments(resource)],
-      trailingSlash,
-      signal,
-    });
-    if (result.kind === "directory-redirect") return directoryRedirect(url);
-    return new Response(result.bytes as Uint8Array<ArrayBuffer>, {
-      headers: {
-        "content-type": result.contentType,
-        "cache-control": isIPFS ? "public, max-age=31536000, immutable" : "public, max-age=300",
-        "x-ipfs-roots": cidToV1Base32(resolved.root),
-      },
-    });
-  };
-
-  const trustless: Racer[] = TRUSTLESS_GATEWAYS.map((gateway) => ({
-    label: `trustless:${new URL(gateway).host}`,
-    run: async (signal) => ({ response: await verified(gateway, signal) }),
-  }));
-
-  // Providers discovered through delegated routing (e.g. the pinning service hosting the CID).
-  const routed: Racer = {
-    label: "trustless:routed",
+  // Blocks from trustless gateways, verified against their CIDs before decoding.
+  const verified: Racer = {
+    label: "verified-fetch",
     run: async (signal) => {
-      const resolved = await target();
-      if (!resolved) throw new Error("unresolvable name");
-      const providers = await findHttpProviders(resolved.root, signal);
-      return Promise.any(
-        providers.map(async (gateway) => ({
-          response: await verified(gateway, signal),
-          label: `trustless:${new URL(gateway).host}`,
-        })),
-      );
+      const target = isIPFS ? `ipfs://${cid}` : await resolveIpnsTarget(cid);
+      const verifiedFetch = await createVerifiedFetch();
+      const response = await verifiedFetch(`${target}/${resource}${gatewaySearch}`, {
+        signal,
+        redirect: "manual",
+      });
+
+      if (response.status === 404) throw new NotFoundError();
+      if (response.status >= 300 && response.status < 400) {
+        // Locations are ipfs:// URLs (e.g. adding a trailing slash to a directory).
+        const location = new URL(response.headers.get("location") ?? "", `${target}/`);
+        const prefix = url.hostname === ROOT_HOST ? `/${isIPFS ? "ipfs" : "ipns"}/${cid}` : "";
+        const redirectUrl = new URL(url);
+        redirectUrl.pathname = `${prefix}${location.pathname}`;
+        return { response: redirect(redirectUrl.toString()) };
+      }
+      if (!response.ok) throw new Error(`bad status ${response.status}`);
+
+      if ((response.headers.get("content-type") ?? "").includes("vnd.ipld.dag-pb")) {
+        const html = directoryListingHtml(
+          new Uint8Array(await response.arrayBuffer()),
+          url.pathname,
+        );
+        if (!html) throw new Error("unsupported directory");
+        return {
+          response: new Response(html, {
+            headers: {
+              "content-type": "text/html; charset=utf-8",
+              "cache-control": response.headers.get("cache-control") ?? "public, max-age=300",
+            },
+          }),
+        };
+      }
+      return { response };
     },
   };
 
-  return [...deserialized, ...trustless, routed];
+  return [...deserialized, verified];
 }
 
 async function serveContent({

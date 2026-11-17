@@ -12,8 +12,8 @@ import {
 } from "viem";
 import { normalize } from "viem/ens";
 import { mainnet } from "viem/chains";
-import { decodeCidBytes, readVarint } from "./cid";
-import type { IpfsPath } from "./trustless";
+import { CID } from "multiformats/cid";
+import { varint } from "multiformats";
 
 const RPC_URL = "https://evm.stupidtech.net/v1/1";
 const ENS_RESOLVER = "0x231b0Ee14048e9dCcD1d247744d114a4EB5E8E63";
@@ -81,8 +81,8 @@ function dnsEncode(name: string): Hex {
   return toHex(new Uint8Array(bytes));
 }
 
-/** Resolves an ENS name's contenthash to an IPFS path (ipfs-ns only). */
-export async function resolveEnsContenthash(name: string): Promise<IpfsPath | null> {
+/** Resolves an ENS name's contenthash to an IPFS CID (ipfs-ns only). */
+export async function resolveEnsContenthash(name: string): Promise<CID | null> {
   const normalized = normalize(name);
   const [result] = await getClient().readContract({
     address: mainnet.contracts.ensUniversalResolver.address,
@@ -105,10 +105,10 @@ export async function resolveEnsContenthash(name: string): Promise<IpfsPath | nu
 
   const bytes = hexToBytes(contenthash);
   if (bytes.length === 0) return null;
-  const [namespace, offset] = readVarint(bytes, 0);
+  const [namespace, offset] = varint.decode(bytes);
   if (namespace !== IPFS_NS) return null;
-  const [root] = decodeCidBytes(bytes, offset);
-  return { root, path: [] };
+  const [cid] = CID.decodeFirst(bytes.subarray(offset));
+  return cid;
 }
 
 export function freshnessHtml(name: string, age: number | null): string {
