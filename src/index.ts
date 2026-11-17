@@ -1,45 +1,71 @@
-const IPFS_HOSTS = ["dweb.link", "ipfs.io", "gateway.pinata.cloud"];
+import { cidToV1Base32, isLowercasedCidV0, parseCid } from "./cid";
+import { freshnessHtml, lookupContenthashAge, resolveEnsContenthash } from "./ens";
+import { createVerifiedFetch, directoryListingHtml } from "./ipfs";
+
+const ROOT_HOST = "ipfs.stupidtech.net";
+
+// Free gateways that still return deserialized (rendered) content without altering it
+// (checked 2026-11-17). ipfs.io / dweb.link now rate limit all backend traffic, pinata
+// refuses HTML, and orbitor injects a Cloudflare challenge script into HTML (so it is
+// only used as a trustless block source, see ./ipfs.ts).
+const DESERIALIZED_GATEWAYS = ["ipfs.filebase.io", "ipfs.raribleuserdata.com"];
+
+const RACE_TIMEOUT_MS = 25_000;
 
 type Env = {
   ASSETS: Fetcher;
   METRICS_DO: DurableObjectNamespace;
 };
 
+type Racer = {
+  label: string;
+  run: (signal: AbortSignal) => Promise<{ response: Response; label?: string }>;
+};
+
 function redirect(target: string): Response {
   return Response.redirect(target, 301);
 }
 
-import { freshnessHtml, lookupContenthashAge } from "./ens";
+function textResponse(body: string, status: number): Response {
+  return new Response(`${body}\n`, {
+    status,
+    headers: { "content-type": "text/plain; charset=utf-8" },
+  });
+}
 
-async function fetchFirstValidGateway(
-  urls: string[],
-): Promise<{ index: number; response: Response } | null> {
-  const controllers = urls.map(() => new AbortController());
+/** The verified path proved the requested path does not exist. */
+class NotFoundError extends Error {}
+
+type RaceResult = { label: string; response: Response } | { notFound: true } | null;
+
+function hasNotFound(error: unknown): boolean {
+  if (error instanceof NotFoundError) return true;
+  return error instanceof AggregateError && error.errors.some(hasNotFound);
+}
+
+async function race(racers: Racer[]): Promise<RaceResult> {
+  const controllers = racers.map(() => new AbortController());
+  const timers = controllers.map((controller) =>
+    setTimeout(() => controller.abort(), RACE_TIMEOUT_MS),
+  );
 
   try {
-    const { index, response } = await Promise.any(
-      urls.map(async (url, index) => {
-        const response = await fetch(url, {
-          signal: controllers[index].signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(`bad status ${response.status}`);
-        }
-
-        return { index, response };
+    const winner = await Promise.any(
+      racers.map(async (racer, index) => {
+        const result = await racer.run(controllers[index].signal);
+        return { index, ...result };
       }),
     );
 
-    controllers.forEach((controller, controllerIndex) => {
-      if (controllerIndex !== index) {
-        controller.abort();
-      }
+    controllers.forEach((controller, index) => {
+      if (index !== winner.index) controller.abort();
     });
 
-    return { index, response };
-  } catch {
-    return null;
+    return { label: winner.label ?? racers[winner.index].label, response: winner.response };
+  } catch (error) {
+    return hasNotFound(error) ? { notFound: true } : null;
+  } finally {
+    timers.forEach(clearTimeout);
   }
 }
 
@@ -69,13 +95,25 @@ function isHtmlResponse(response: Response): boolean {
   return (response.headers.get("Content-Type") ?? "").includes("text/html");
 }
 
+function invalidCidResponse(cid: string): Response {
+  if (isLowercasedCidV0(cid)) {
+    return textResponse(
+      `"${cid}" looks like a CIDv0 ("Qm...") that was lowercased. CIDv0 is case-sensitive, so it ` +
+        `cannot be used as a subdomain. Use https://${ROOT_HOST}/ipfs/<Qm...>/ with the original ` +
+        `casing and you will be redirected to a working URL.`,
+      400,
+    );
+  }
+  return textResponse(`invalid CID: ${cid}`, 400);
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const { hostname, pathname } = url;
 
     const subdomain = extractSubdomainCID(hostname);
-    const isRootDomain = hostname === "ipfs.stupidtech.net";
+    const isRootDomain = hostname === ROOT_HOST;
 
     if (isRootDomain) {
       if (pathname === "/stats") {
@@ -93,9 +131,17 @@ export default {
       }
 
       if (pathCID.isIPFS) {
+        const parsed = parseCid(pathCID.cid);
+        if (!parsed) return invalidCidResponse(pathCID.cid);
+
         const resource = pathname.slice(`/ipfs/${pathCID.cid}`.length).replace(/^\//, "");
-        const path = resource ? `/${resource}` : "/";
-        return redirect(`https://${pathCID.cid}.ipfs.stupidtech.net${path}${url.search}`);
+        // Subdomains are case-insensitive, so always redirect to CIDv1 base32.
+        const cidV1 = cidToV1Base32(parsed);
+        if (cidV1.length <= 63) {
+          const path = resource ? `/${resource}` : "/";
+          return redirect(`https://${cidV1}.${ROOT_HOST}${path}${url.search}`);
+        }
+        return serveContent({ cid: cidV1, isIPFS: true, resource, url, env, ctx });
       }
 
       const resource = pathname.slice(`/ipns/${pathCID.cid}`.length).replace(/^\//, "");
@@ -103,8 +149,11 @@ export default {
     }
 
     if (subdomain) {
+      const parsed = parseCid(subdomain.cid);
+      if (!parsed) return invalidCidResponse(subdomain.cid);
+
       return serveContent({
-        cid: subdomain.cid,
+        cid: cidToV1Base32(parsed),
         isIPFS: subdomain.isIPFS,
         resource: pathname.slice(1),
         url,
@@ -113,9 +162,99 @@ export default {
       });
     }
 
-    return redirect(`https://dweb.link${pathname}${url.search}`);
+    return redirect(`https://${ROOT_HOST}${pathname}${url.search}`);
   },
 };
+
+function directoryRedirect(url: URL): Response {
+  const target = new URL(url);
+  target.pathname += "/";
+  return redirect(target.toString());
+}
+
+/** ENS names resolve through their contenthash; everything else via verified IPNS/DNSLink. */
+async function resolveIpnsTarget(name: string): Promise<string> {
+  if (name.endsWith(".eth")) {
+    const cid = await resolveEnsContenthash(name);
+    if (!cid) throw new Error("no ipfs contenthash");
+    return `ipfs://${cidToV1Base32(cid)}`;
+  }
+  return `ipns://${name}`;
+}
+
+function buildRacers({
+  cid,
+  isIPFS,
+  resource,
+  url,
+  gatewaySearch,
+}: {
+  cid: string;
+  isIPFS: boolean;
+  resource: string;
+  url: URL;
+  gatewaySearch: string;
+}): Racer[] {
+  const trailingSlash = url.pathname.endsWith("/");
+
+  const deserialized: Racer[] = DESERIALIZED_GATEWAYS.map((host) => ({
+    label: host,
+    run: async (signal) => {
+      const base = `https://${host}/${isIPFS ? "ipfs" : "ipns"}/${cid}`;
+      const response = await fetch(`${resource ? `${base}/${resource}` : base}${gatewaySearch}`, {
+        signal,
+      });
+      if (!response.ok) throw new Error(`bad status ${response.status}`);
+      if (!trailingSlash && response.redirected && new URL(response.url).pathname.endsWith("/")) {
+        return { response: directoryRedirect(url) };
+      }
+      return { response };
+    },
+  }));
+
+  // Blocks from trustless gateways, verified against their CIDs before decoding.
+  const verified: Racer = {
+    label: "verified-fetch",
+    run: async (signal) => {
+      const target = isIPFS ? `ipfs://${cid}` : await resolveIpnsTarget(cid);
+      const verifiedFetch = await createVerifiedFetch();
+      const response = await verifiedFetch(`${target}/${resource}${gatewaySearch}`, {
+        signal,
+        redirect: "manual",
+      });
+
+      if (response.status === 404) throw new NotFoundError();
+      if (response.status >= 300 && response.status < 400) {
+        // Locations are ipfs:// URLs (e.g. adding a trailing slash to a directory).
+        const location = new URL(response.headers.get("location") ?? "", `${target}/`);
+        const prefix = url.hostname === ROOT_HOST ? `/${isIPFS ? "ipfs" : "ipns"}/${cid}` : "";
+        const redirectUrl = new URL(url);
+        redirectUrl.pathname = `${prefix}${location.pathname}`;
+        return { response: redirect(redirectUrl.toString()) };
+      }
+      if (!response.ok) throw new Error(`bad status ${response.status}`);
+
+      if ((response.headers.get("content-type") ?? "").includes("vnd.ipld.dag-pb")) {
+        const html = directoryListingHtml(
+          new Uint8Array(await response.arrayBuffer()),
+          url.pathname,
+        );
+        if (!html) throw new Error("unsupported directory");
+        return {
+          response: new Response(html, {
+            headers: {
+              "content-type": "text/html; charset=utf-8",
+              "cache-control": response.headers.get("cache-control") ?? "public, max-age=300",
+            },
+          }),
+        };
+      }
+      return { response };
+    },
+  };
+
+  return [...deserialized, verified];
+}
 
 async function serveContent({
   cid,
@@ -137,19 +276,19 @@ async function serveContent({
   gatewayParams.delete("_sref");
   const gatewaySearch = gatewayParams.size ? `?${gatewayParams.toString()}` : "";
 
-  const gatewayPaths = IPFS_HOSTS.map((host) => {
-    if (isIPFS && host === "dweb.link") {
-      return `https://${cid}.ipfs.${host}${resource ? `/${resource}` : "/"}${gatewaySearch}`;
-    }
-    const base = `https://${host}/${isIPFS ? "ipfs" : "ipns"}/${cid}`;
-    const path = resource ? `${base}/${resource}` : base;
-    return `${path}${gatewaySearch}`;
-  });
-
   const startedAt = performance.now();
-  const gatewayPromise = fetchFirstValidGateway(gatewayPaths);
   const agePromise = sref ? lookupContenthashAge(sref).catch(() => null) : Promise.resolve(null);
-  const result = await gatewayPromise;
+
+  // /ipfs/ content is immutable, so cache it at the edge (keyed without `_sref`).
+  const cache = isIPFS ? (caches as unknown as { default: Cache }).default : null;
+  const cacheKey = new Request(`${url.origin}${url.pathname}${gatewaySearch}`);
+  const cached = cache ? await cache.match(cacheKey).catch(() => undefined) : undefined;
+
+  const raced = cached
+    ? { label: "cache", response: cached }
+    : await race(buildRacers({ cid, isIPFS, resource, url, gatewaySearch }));
+  const notFound = raced !== null && "notFound" in raced;
+  const result = raced !== null && "response" in raced ? raced : null;
   const latencyMs = Math.max(0, performance.now() - startedAt);
   const age = await agePromise;
 
@@ -159,13 +298,21 @@ async function serveContent({
     errorCount: response ? 0 : 1,
     latencyMs,
     latencySampleCount: 1,
-    gatewayHost: result?.index !== undefined ? IPFS_HOSTS[result.index] : undefined,
+    gatewayHost: result?.label,
   };
   ctx.waitUntil(recordIpRequest({ env, record }));
 
   if (response) {
+    if (response.status >= 300 && response.status < 400) return response;
+
     const headers = new Headers(response.headers);
     headers.set("Cache-Control", headers.get("Cache-Control") ?? "public, max-age=300");
+    headers.delete("Set-Cookie");
+
+    if (cache && !cached && response.status === 200) {
+      const forCache = new Response(response.clone().body, { status: 200, headers });
+      ctx.waitUntil(cache.put(cacheKey, forCache).catch(() => undefined));
+    }
 
     if (isHtmlResponse(response)) {
       let body = await response.text();
@@ -187,7 +334,8 @@ async function serveContent({
     });
   }
 
-  return new Response("no reachable gateway", { status: 502 });
+  if (notFound) return textResponse("not found", 404);
+  return textResponse("no reachable gateway", 502);
 }
 
 const COUNTERS_STORAGE_KEY = "counters";

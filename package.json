@@ -11,6 +11,13 @@
     "check": "bun run lint && bun run format"
   },
   "dependencies": {
+    "@helia/http": "^4.0.8",
+    "@helia/verified-fetch": "^8.1.2",
+    "@ipld/dag-pb": "^4.2.0",
+    "@multiformats/dns": "^1.0.15",
+    "helia": "^7.1.16",
+    "ipfs-unixfs": "^13.1.2",
+    "multiformats": "^14.0.5",
     "viem": "^2.48.4",
     "zod": "^4.3.6"
   },

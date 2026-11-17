@@ -1,10 +1,4 @@
-const GATEWAYS = [
-  "ipfs.stupidtech.net",
-  "dweb.link",
-  "ipfs.io",
-  "cloudflare-ipfs.com",
-  "gateway.pinata.cloud",
-];
+const GATEWAYS = ["ipfs.stupidtech.net", "ipfs.raribleuserdata.com", "ipfs.orbitor.dev"];
 const RUNS = 10;
 
 const RESOURCES = [

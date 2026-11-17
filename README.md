@@ -1,6 +1,6 @@
 # ipfs-racer
 
-Cloudflare Worker that races public IPFS and IPNS gateways and returns the first valid response.
+Cloudflare Worker that races IPFS retrieval strategies and returns the first valid response.
 
 ## Usage
 
@@ -18,11 +18,35 @@ https://ipfs.stupidtech.net/ipns/<name>/   →  served directly
 
 ## Gateways
 
-Requests race these public gateways. The fastest valid response wins.
+Most free deserializing gateways are gone. IPFS started rate limiting backend traffic to `ipfs.io` and
+`dweb.link` in 2026 (they now return 429), `trustless-gateway.link` is down, and `gateway.pinata.cloud`
+refuses to serve HTML. See [IPFS is moving beyond the sponsored gateways](https://blog.ipfs.tech/2026-08-beyond-sponsored-gateways/).
 
-- `dweb.link` (subdomain)
-- `ipfs.io` (path)
-- `gateway.pinata.cloud` (path)
+Requests race:
+
+- **Deserializing gateways** (one request, fastest when they have the content):
+  `ipfs.filebase.io`, `ipfs.raribleuserdata.com` (a Filebase-hosted gateway).
+- **Verified retrieval** with [`@helia/verified-fetch`](https://www.npmjs.com/package/@helia/verified-fetch)
+  (HTTP-only Helia): raw blocks are fetched from trustless gateways, checked against their CIDs, and
+  decoded in the Worker. Block sources:
+  - `ipfs.orbitor.dev`, `eu.orbitor.dev`, `apac.orbitor.dev`, `latam.orbitor.dev`
+  - `ipfs.greyh.at`, `via0.com`, `ipfs.filebase.io`
+  - providers found via delegated routing (`delegated-ipfs.dev`), e.g. `trustless.filebase.io`
+
+`ipfs.orbitor.dev` is only used for verified blocks: its rendered HTML has a Cloudflare challenge
+script injected into it.
+
+The list was picked by probing every gateway ever listed in
+[ipfs/public-gateway-checker](https://github.com/ipfs/public-gateway-checker) plus the
+[MISP list](https://github.com/MISP/misp-warninglists/blob/main/lists/public-ipfs-gateways/list.json)
+(183 hosts, November 2026). Update `src/ipfs.ts` and `DESERIALIZED_GATEWAYS` in `src/index.ts` as
+gateways come and go.
+
+`/ipns/` names: `.eth` names resolve through their ENS contenthash, everything else (DNSLink, IPNS
+keys) through verified-fetch. Successful `/ipfs/` responses are cached at the edge (they are immutable).
+
+CIDv0 (`Qm...`) links are redirected to a base32 CIDv1 subdomain, because hostnames are lowercased
+and base58 CIDs are case-sensitive.
 
 ## ENS freshness indicator
 
